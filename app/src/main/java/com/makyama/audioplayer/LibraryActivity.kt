@@ -1,17 +1,19 @@
 package com.makyama.audioplayer
 
 import android.Manifest
+import android.app.PendingIntent
 import android.content.ContentUris
 import android.content.Intent
+import android.content.IntentSender
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.MediaStore
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.LayoutInflater
 import android.view.View
-import android.widget.AdapterView
-import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
@@ -21,6 +23,7 @@ import android.widget.LinearLayout
 import android.widget.PopupMenu
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -44,6 +47,7 @@ class LibraryActivity : AppCompatActivity() {
     private lateinit var selectedActionBar: LinearLayout
     private lateinit var selectedCountText: TextView
     private lateinit var playSelectedButton: Button
+    private lateinit var deleteSelectedButton: Button
 
     private var audioList = mutableListOf<AudioItem>()
     private var displayedList = mutableListOf<AudioItem>()
@@ -60,14 +64,51 @@ class LibraryActivity : AppCompatActivity() {
     private var sortType = SortType.TITLE
     private var selectionMode = false
 
+    /*
+     * Android 11+ uses the system confirmation screen
+     * when an app wants to delete media that it did not create.
+     */
+    private val deletePermissionLauncher =
+        registerForActivityResult(
+            ActivityResultContracts.StartIntentSenderForResult()
+        ) { result ->
+
+            if (result.resultCode ==
+                RESULT_OK
+            ) {
+
+                selectedIds.clear()
+                selectionMode = false
+
+                loadAudioFiles()
+
+                Toast.makeText(
+                    this,
+                    "Selected audio deleted.",
+                    Toast.LENGTH_SHORT
+                ).show()
+
+            } else {
+
+                Toast.makeText(
+                    this,
+                    "Delete cancelled.",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+
     private val permissionLauncher =
         registerForActivityResult(
             ActivityResultContracts.RequestPermission()
         ) { granted ->
 
             if (granted) {
+
                 loadAudioFiles()
+
             } else {
+
                 Toast.makeText(
                     this,
                     "Music permission is required to read your songs.",
@@ -76,41 +117,73 @@ class LibraryActivity : AppCompatActivity() {
             }
         }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
+    override fun onCreate(
+        savedInstanceState: Bundle?
+    ) {
         super.onCreate(savedInstanceState)
 
-        setContentView(R.layout.library_activity)
+        setContentView(
+            R.layout.library_activity
+        )
 
         songsContainer =
-            findViewById(R.id.songsContainer)
+            findViewById(
+                R.id.songsContainer
+            )
 
         emptyText =
-            findViewById(R.id.emptyText)
+            findViewById(
+                R.id.emptyText
+            )
 
         songCountText =
-            findViewById(R.id.songCountText)
+            findViewById(
+                R.id.songCountText
+            )
 
         searchEditText =
-            findViewById(R.id.searchMusicEditText)
+            findViewById(
+                R.id.searchMusicEditText
+            )
 
         menuButton =
-            findViewById(R.id.libraryMenuButton)
+            findViewById(
+                R.id.libraryMenuButton
+            )
 
         selectedActionBar =
-            findViewById(R.id.selectedActionBar)
+            findViewById(
+                R.id.selectedActionBar
+            )
 
         selectedCountText =
-            findViewById(R.id.selectedCountText)
+            findViewById(
+                R.id.selectedCountText
+            )
 
         playSelectedButton =
-            findViewById(R.id.playSelectedButton)
+            findViewById(
+                R.id.playSelectedButton
+            )
+
+        deleteSelectedButton =
+            findViewById(
+                R.id.deleteSelectedButton
+            )
 
         menuButton.setOnClickListener {
+
             showLibraryMenu()
         }
 
         playSelectedButton.setOnClickListener {
+
             playSelectedSongs()
+        }
+
+        deleteSelectedButton.setOnClickListener {
+
+            deleteSelectedSongs()
         }
 
         setupSearch()
@@ -119,6 +192,7 @@ class LibraryActivity : AppCompatActivity() {
     }
 
     override fun onStart() {
+
         super.onStart()
 
         val sessionToken =
@@ -138,20 +212,26 @@ class LibraryActivity : AppCompatActivity() {
 
         controllerFuture.addListener(
             {
+
                 try {
+
                     mediaController =
                         controllerFuture.get()
+
                 } catch (_: Exception) {
                 }
+
             },
             MoreExecutors.directExecutor()
         )
     }
 
     override fun onStop() {
+
         super.onStop()
 
-        mediaController?.let {
+        if (::controllerFuture.isInitialized) {
+
             MediaController.releaseFuture(
                 controllerFuture
             )
@@ -163,9 +243,12 @@ class LibraryActivity : AppCompatActivity() {
     private fun checkPermission() {
 
         val permission =
-            if (android.os.Build.VERSION.SDK_INT >= 33) {
+            if (Build.VERSION.SDK_INT >= 33) {
+
                 Manifest.permission.READ_MEDIA_AUDIO
+
             } else {
+
                 Manifest.permission.READ_EXTERNAL_STORAGE
             }
 
@@ -173,7 +256,8 @@ class LibraryActivity : AppCompatActivity() {
             ContextCompat.checkSelfPermission(
                 this,
                 permission
-            ) == PackageManager.PERMISSION_GRANTED
+            ) ==
+            PackageManager.PERMISSION_GRANTED
         ) {
 
             loadAudioFiles()
@@ -226,25 +310,25 @@ class LibraryActivity : AppCompatActivity() {
         audioList.clear()
 
         val collection =
-            android.provider.MediaStore.Audio.Media
+            MediaStore.Audio.Media
                 .EXTERNAL_CONTENT_URI
 
         val projection =
             arrayOf(
-                android.provider.MediaStore.Audio.Media._ID,
-                android.provider.MediaStore.Audio.Media.TITLE,
-                android.provider.MediaStore.Audio.Media.ARTIST,
-                android.provider.MediaStore.Audio.Media.ALBUM,
-                android.provider.MediaStore.Audio.Media.DURATION,
-                android.provider.MediaStore.Audio.Media.DATE_ADDED,
-                android.provider.MediaStore.Audio.Media.ALBUM_ID
+                MediaStore.Audio.Media._ID,
+                MediaStore.Audio.Media.TITLE,
+                MediaStore.Audio.Media.ARTIST,
+                MediaStore.Audio.Media.ALBUM,
+                MediaStore.Audio.Media.DURATION,
+                MediaStore.Audio.Media.DATE_ADDED,
+                MediaStore.Audio.Media.ALBUM_ID
             )
 
         val selection =
-            "${android.provider.MediaStore.Audio.Media.IS_MUSIC} != 0"
+            "${MediaStore.Audio.Media.IS_MUSIC} != 0"
 
         val sortOrder =
-            "${android.provider.MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC"
+            "${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC"
 
         contentResolver.query(
             collection,
@@ -256,64 +340,75 @@ class LibraryActivity : AppCompatActivity() {
 
             val idColumn =
                 cursor.getColumnIndexOrThrow(
-                    android.provider.MediaStore.Audio.Media._ID
+                    MediaStore.Audio.Media._ID
                 )
 
             val titleColumn =
                 cursor.getColumnIndexOrThrow(
-                    android.provider.MediaStore.Audio.Media.TITLE
+                    MediaStore.Audio.Media.TITLE
                 )
 
             val artistColumn =
                 cursor.getColumnIndexOrThrow(
-                    android.provider.MediaStore.Audio.Media.ARTIST
+                    MediaStore.Audio.Media.ARTIST
                 )
 
             val albumColumn =
                 cursor.getColumnIndexOrThrow(
-                    android.provider.MediaStore.Audio.Media.ALBUM
+                    MediaStore.Audio.Media.ALBUM
                 )
 
             val durationColumn =
                 cursor.getColumnIndexOrThrow(
-                    android.provider.MediaStore.Audio.Media.DURATION
+                    MediaStore.Audio.Media.DURATION
                 )
 
             val dateColumn =
                 cursor.getColumnIndexOrThrow(
-                    android.provider.MediaStore.Audio.Media.DATE_ADDED
+                    MediaStore.Audio.Media.DATE_ADDED
                 )
 
             val albumIdColumn =
                 cursor.getColumnIndexOrThrow(
-                    android.provider.MediaStore.Audio.Media.ALBUM_ID
+                    MediaStore.Audio.Media.ALBUM_ID
                 )
 
             while (cursor.moveToNext()) {
 
                 val id =
-                    cursor.getLong(idColumn)
+                    cursor.getLong(
+                        idColumn
+                    )
 
                 val title =
-                    cursor.getString(titleColumn)
-                        ?: "Unknown title"
+                    cursor.getString(
+                        titleColumn
+                    ) ?: "Unknown title"
 
                 val artist =
-                    cursor.getString(artistColumn)
-                        ?: "Unknown artist"
+                    cursor.getString(
+                        artistColumn
+                    ) ?: "Unknown artist"
 
                 val album =
-                    cursor.getString(albumColumn)
-                        ?: "Unknown album"
+                    cursor.getString(
+                        albumColumn
+                    ) ?: "Unknown album"
 
                 val duration =
-                    cursor.getLong(durationColumn)
+                    cursor.getLong(
+                        durationColumn
+                    )
 
                 val dateAdded =
-                    cursor.getLong(dateColumn)
+                    cursor.getLong(
+                        dateColumn
+                    )
 
                 val albumId =
-                    cursor.getLong(albumIdColumn)
+                    cursor.getLong(
+                        albumIdColumn
+                    )
 
                 val uri =
                     ContentUris.withAppendedId(
@@ -344,25 +439,33 @@ class LibraryActivity : AppCompatActivity() {
         when (sortType) {
 
             SortType.TITLE -> {
+
                 audioList.sortBy {
+
                     it.title.lowercase()
                 }
             }
 
             SortType.ARTIST -> {
+
                 audioList.sortBy {
+
                     it.artist.lowercase()
                 }
             }
 
             SortType.ALBUM -> {
+
                 audioList.sortBy {
+
                     it.album.lowercase()
                 }
             }
 
             SortType.DATE_ADDED -> {
+
                 audioList.sortByDescending {
+
                     it.dateAdded
                 }
             }
@@ -420,8 +523,11 @@ class LibraryActivity : AppCompatActivity() {
 
         songCountText.text =
             if (displayedList.size == 1) {
+
                 "1 song"
+
             } else {
+
                 "${displayedList.size} songs"
             }
 
@@ -432,10 +538,15 @@ class LibraryActivity : AppCompatActivity() {
 
             emptyText.text =
                 if (audioList.isEmpty()) {
+
                     "No music found on this device."
+
                 } else {
+
                     "No songs match your search."
                 }
+
+            updateSelectionUI()
 
             return
         }
@@ -488,26 +599,46 @@ class LibraryActivity : AppCompatActivity() {
 
             checkBox.visibility =
                 if (selectionMode) {
+
                     View.VISIBLE
+
                 } else {
+
                     View.GONE
                 }
 
             checkBox.isChecked =
-                selectedIds.contains(song.id)
+                selectedIds.contains(
+                    song.id
+                )
 
             checkBox.setOnCheckedChangeListener {
+
                     _, checked ->
 
                 if (checked) {
-                    selectedIds.add(song.id)
+
+                    selectedIds.add(
+                        song.id
+                    )
+
                 } else {
-                    selectedIds.remove(song.id)
+
+                    selectedIds.remove(
+                        song.id
+                    )
                 }
 
                 updateSelectionUI()
             }
 
+            /*
+             * Normal tap:
+             * play the song.
+             *
+             * Selection mode:
+             * select/unselect the song.
+             */
             row.setOnClickListener {
 
                 if (selectionMode) {
@@ -517,11 +648,65 @@ class LibraryActivity : AppCompatActivity() {
 
                 } else {
 
-                    playSingleSong(song)
+                    playSingleSong(
+                        song
+                    )
                 }
             }
 
-            songsContainer.addView(row)
+            /*
+             * LONG PRESS:
+             * enter selection mode and select
+             * the song that was long-pressed.
+             */
+            row.setOnLongClickListener {
+
+                if (!selectionMode) {
+
+                    selectionMode = true
+
+                    selectedIds.clear()
+
+                    selectedIds.add(
+                        song.id
+                    )
+
+                    showSongs()
+
+                    Toast.makeText(
+                        this,
+                        "Selection mode",
+                        Toast.LENGTH_SHORT
+                    ).show()
+
+                } else {
+
+                    if (
+                        selectedIds.contains(
+                            song.id
+                        )
+                    ) {
+
+                        selectedIds.remove(
+                            song.id
+                        )
+
+                    } else {
+
+                        selectedIds.add(
+                            song.id
+                        )
+                    }
+
+                    showSongs()
+                }
+
+                true
+            }
+
+            songsContainer.addView(
+                row
+            )
         }
 
         updateSelectionUI()
@@ -574,10 +759,19 @@ class LibraryActivity : AppCompatActivity() {
 
         selectedCountText.text =
             if (selectedIds.size == 1) {
+
                 "1 selected"
+
             } else {
+
                 "${selectedIds.size} selected"
             }
+
+        deleteSelectedButton.isEnabled =
+            selectedIds.isNotEmpty()
+
+        playSelectedButton.isEnabled =
+            selectedIds.isNotEmpty()
     }
 
     private fun showLibraryMenu() {
@@ -620,11 +814,18 @@ class LibraryActivity : AppCompatActivity() {
             "Play selected"
         )
 
+        popup.menu.add(
+            "Delete selected"
+        )
+
         popup.setOnMenuItemClickListener {
 
-            when (it.title.toString()) {
+            when (
+                it.title.toString()
+            ) {
 
                 "Sort by Title" -> {
+
                     sortType =
                         SortType.TITLE
 
@@ -632,6 +833,7 @@ class LibraryActivity : AppCompatActivity() {
                 }
 
                 "Sort by Artist" -> {
+
                     sortType =
                         SortType.ARTIST
 
@@ -639,6 +841,7 @@ class LibraryActivity : AppCompatActivity() {
                 }
 
                 "Sort by Album" -> {
+
                     sortType =
                         SortType.ALBUM
 
@@ -646,6 +849,7 @@ class LibraryActivity : AppCompatActivity() {
                 }
 
                 "Sort by Date added" -> {
+
                     sortType =
                         SortType.DATE_ADDED
 
@@ -653,19 +857,28 @@ class LibraryActivity : AppCompatActivity() {
                 }
 
                 "Select songs" -> {
+
                     enterSelectionMode()
                 }
 
                 "Select all" -> {
+
                     selectAllSongs()
                 }
 
                 "Clear selection" -> {
+
                     clearSelection()
                 }
 
                 "Play selected" -> {
+
                     playSelectedSongs()
+                }
+
+                "Delete selected" -> {
+
+                    deleteSelectedSongs()
                 }
             }
 
@@ -683,7 +896,7 @@ class LibraryActivity : AppCompatActivity() {
 
         Toast.makeText(
             this,
-            "Select the songs you want to play.",
+            "Long press or tap songs to select them.",
             Toast.LENGTH_SHORT
         ).show()
     }
@@ -699,7 +912,10 @@ class LibraryActivity : AppCompatActivity() {
         selectedIds.clear()
 
         audioList.forEach {
-            selectedIds.add(it.id)
+
+            selectedIds.add(
+                it.id
+            )
         }
 
         showSongs()
@@ -733,15 +949,20 @@ class LibraryActivity : AppCompatActivity() {
         }
 
         val mediaItem =
-            createMediaItem(song)
+            createMediaItem(
+                song
+            )
 
         controller.setMediaItems(
-            listOf(mediaItem),
+            listOf(
+                mediaItem
+            ),
             0,
             0L
         )
 
         controller.prepare()
+
         controller.play()
 
         startActivity(
@@ -770,6 +991,7 @@ class LibraryActivity : AppCompatActivity() {
 
         val selectedSongs =
             audioList.filter {
+
                 selectedIds.contains(
                     it.id
                 )
@@ -788,7 +1010,10 @@ class LibraryActivity : AppCompatActivity() {
 
         val mediaItems =
             selectedSongs.map {
-                createMediaItem(it)
+
+                createMediaItem(
+                    it
+                )
             }
 
         controller.setMediaItems(
@@ -798,6 +1023,7 @@ class LibraryActivity : AppCompatActivity() {
         )
 
         controller.prepare()
+
         controller.play()
 
         startActivity(
@@ -808,20 +1034,145 @@ class LibraryActivity : AppCompatActivity() {
         )
     }
 
+    /*
+     * Delete selected audio.
+     *
+     * Android 11+:
+     * show the official Android delete confirmation.
+     *
+     * Older Android:
+     * try direct deletion.
+     */
+    private fun deleteSelectedSongs() {
+
+        val selectedSongs =
+            audioList.filter {
+
+                selectedIds.contains(
+                    it.id
+                )
+            }
+
+        if (selectedSongs.isEmpty()) {
+
+            Toast.makeText(
+                this,
+                "Select at least one song.",
+                Toast.LENGTH_SHORT
+            ).show()
+
+            return
+        }
+
+        if (Build.VERSION.SDK_INT >= 30) {
+
+            val uris =
+                selectedSongs.map {
+
+                    Uri.parse(
+                        it.uri
+                    )
+                }
+
+            try {
+
+                val pendingIntent =
+                    MediaStore.createDeleteRequest(
+                        contentResolver,
+                        uris
+                    )
+
+                val request =
+                    IntentSenderRequest.Builder(
+                        pendingIntent.intentSender
+                    ).build()
+
+                deletePermissionLauncher.launch(
+                    request
+                )
+
+            } catch (
+                exception: Exception
+            ) {
+
+                Toast.makeText(
+                    this,
+                    "Could not start delete request.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+
+        } else {
+
+            deleteSongsLegacy(
+                selectedSongs
+            )
+        }
+    }
+
+    private fun deleteSongsLegacy(
+        selectedSongs: List<AudioItem>
+    ) {
+
+        var deletedCount = 0
+
+        for (song in selectedSongs) {
+
+            try {
+
+                val deleted =
+                    contentResolver.delete(
+                        Uri.parse(
+                            song.uri
+                        ),
+                        null,
+                        null
+                    )
+
+                if (deleted > 0) {
+
+                    deletedCount++
+                }
+
+            } catch (_: Exception) {
+            }
+        }
+
+        selectedIds.clear()
+
+        selectionMode = false
+
+        loadAudioFiles()
+
+        Toast.makeText(
+            this,
+            "$deletedCount audio deleted.",
+            Toast.LENGTH_SHORT
+        ).show()
+    }
+
     private fun createMediaItem(
         song: AudioItem
     ): MediaItem {
 
         val metadata =
             MediaMetadata.Builder()
-                .setTitle(song.title)
-                .setArtist(song.artist)
-                .setAlbumTitle(song.album)
+                .setTitle(
+                    song.title
+                )
+                .setArtist(
+                    song.artist
+                )
+                .setAlbumTitle(
+                    song.album
+                )
                 .build()
 
         return MediaItem.Builder()
             .setUri(
-                Uri.parse(song.uri)
+                Uri.parse(
+                    song.uri
+                )
             )
             .setMediaMetadata(
                 metadata
