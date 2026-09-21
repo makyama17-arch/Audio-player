@@ -28,11 +28,11 @@ class AudioPlayerService : MediaSessionService() {
             .setHandleAudioBecomingNoisy(true)
             .build()
 
-        val sessionActivity = Intent(this, MainActivity::class.java)
+        val sessionActivity = Intent(this, PlayerActivity::class.java)
 
         val pendingIntent = PendingIntent.getActivity(
             this,
-            0,
+            100,
             sessionActivity,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
@@ -49,7 +49,8 @@ class AudioPlayerService : MediaSessionService() {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        if (!player.playWhenReady || player.mediaItemCount == 0) {
+        // Do not stop a currently playing audio when the app task is removed.
+        if (!player.isPlaying && player.mediaItemCount == 0) {
             stopSelf()
         }
 
@@ -57,12 +58,10 @@ class AudioPlayerService : MediaSessionService() {
     }
 
     override fun onDestroy() {
-        mediaSession?.run {
-            player.release()
-            release()
-        }
-
+        mediaSession?.release()
         mediaSession = null
+
+        player.release()
 
         super.onDestroy()
     }
