@@ -1,10 +1,8 @@
 package com.makyama.audioplayer
 
 import android.Manifest
-import android.app.PendingIntent
 import android.content.ContentUris
 import android.content.Intent
-import android.content.IntentSender
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -23,7 +21,6 @@ import android.widget.LinearLayout
 import android.widget.PopupMenu
 import android.widget.TextView
 import android.widget.Toast
-import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -61,21 +58,23 @@ class LibraryActivity : AppCompatActivity() {
         DATE_ADDED
     }
 
-    private var sortType = SortType.TITLE
+    /*
+     * Remember the user's selected sorting option.
+     */
+    private var sortType: SortType = SortType.TITLE
+
     private var selectionMode = false
 
     /*
-     * Android 11+ uses the system confirmation screen
-     * when an app wants to delete media that it did not create.
+     * Android 11+ uses the official Android confirmation
+     * screen when deleting media.
      */
     private val deletePermissionLauncher =
         registerForActivityResult(
             ActivityResultContracts.StartIntentSenderForResult()
         ) { result ->
 
-            if (result.resultCode ==
-                RESULT_OK
-            ) {
+            if (result.resultCode == RESULT_OK) {
 
                 selectedIds.clear()
                 selectionMode = false
@@ -127,62 +126,61 @@ class LibraryActivity : AppCompatActivity() {
         )
 
         songsContainer =
-            findViewById(
-                R.id.songsContainer
-            )
+            findViewById(R.id.songsContainer)
 
         emptyText =
-            findViewById(
-                R.id.emptyText
-            )
+            findViewById(R.id.emptyText)
 
         songCountText =
-            findViewById(
-                R.id.songCountText
-            )
+            findViewById(R.id.songCountText)
 
         searchEditText =
-            findViewById(
-                R.id.searchMusicEditText
-            )
+            findViewById(R.id.searchMusicEditText)
 
         menuButton =
-            findViewById(
-                R.id.libraryMenuButton
-            )
+            findViewById(R.id.libraryMenuButton)
 
         selectedActionBar =
-            findViewById(
-                R.id.selectedActionBar
-            )
+            findViewById(R.id.selectedActionBar)
 
         selectedCountText =
-            findViewById(
-                R.id.selectedCountText
-            )
+            findViewById(R.id.selectedCountText)
 
         playSelectedButton =
-            findViewById(
-                R.id.playSelectedButton
-            )
+            findViewById(R.id.playSelectedButton)
 
         deleteSelectedButton =
-            findViewById(
-                R.id.deleteSelectedButton
-            )
+            findViewById(R.id.deleteSelectedButton)
+
+        /*
+         * Restore the sorting option saved from the
+         * previous session.
+         */
+        val savedSort =
+            getPreferences(MODE_PRIVATE)
+                .getString(
+                    "sort_type",
+                    SortType.TITLE.name
+                )
+
+        sortType =
+            try {
+                SortType.valueOf(
+                    savedSort ?: SortType.TITLE.name
+                )
+            } catch (_: Exception) {
+                SortType.TITLE
+            }
 
         menuButton.setOnClickListener {
-
             showLibraryMenu()
         }
 
         playSelectedButton.setOnClickListener {
-
             playSelectedSongs()
         }
 
         deleteSelectedButton.setOnClickListener {
-
             deleteSelectedSongs()
         }
 
@@ -310,8 +308,7 @@ class LibraryActivity : AppCompatActivity() {
         audioList.clear()
 
         val collection =
-            MediaStore.Audio.Media
-                .EXTERNAL_CONTENT_URI
+            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
 
         val projection =
             arrayOf(
@@ -327,6 +324,10 @@ class LibraryActivity : AppCompatActivity() {
         val selection =
             "${MediaStore.Audio.Media.IS_MUSIC} != 0"
 
+        /*
+         * Initial query order doesn't matter because
+         * sortAudioList() applies the user's saved sort.
+         */
         val sortOrder =
             "${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC"
 
@@ -376,39 +377,28 @@ class LibraryActivity : AppCompatActivity() {
             while (cursor.moveToNext()) {
 
                 val id =
-                    cursor.getLong(
-                        idColumn
-                    )
+                    cursor.getLong(idColumn)
 
                 val title =
-                    cursor.getString(
-                        titleColumn
-                    ) ?: "Unknown title"
+                    cursor.getString(titleColumn)
+                        ?: "Unknown title"
 
                 val artist =
-                    cursor.getString(
-                        artistColumn
-                    ) ?: "Unknown artist"
+                    cursor.getString(artistColumn)
+                        ?: "Unknown artist"
 
                 val album =
-                    cursor.getString(
-                        albumColumn
-                    ) ?: "Unknown album"
+                    cursor.getString(albumColumn)
+                        ?: "Unknown album"
 
                 val duration =
-                    cursor.getLong(
-                        durationColumn
-                    )
+                    cursor.getLong(durationColumn)
 
                 val dateAdded =
-                    cursor.getLong(
-                        dateColumn
-                    )
+                    cursor.getLong(dateColumn)
 
                 val albumId =
-                    cursor.getLong(
-                        albumIdColumn
-                    )
+                    cursor.getLong(albumIdColumn)
 
                 val uri =
                     ContentUris.withAppendedId(
@@ -441,7 +431,6 @@ class LibraryActivity : AppCompatActivity() {
             SortType.TITLE -> {
 
                 audioList.sortBy {
-
                     it.title.lowercase()
                 }
             }
@@ -449,7 +438,6 @@ class LibraryActivity : AppCompatActivity() {
             SortType.ARTIST -> {
 
                 audioList.sortBy {
-
                     it.artist.lowercase()
                 }
             }
@@ -457,7 +445,6 @@ class LibraryActivity : AppCompatActivity() {
             SortType.ALBUM -> {
 
                 audioList.sortBy {
-
                     it.album.lowercase()
                 }
             }
@@ -465,7 +452,6 @@ class LibraryActivity : AppCompatActivity() {
             SortType.DATE_ADDED -> {
 
                 audioList.sortByDescending {
-
                     it.dateAdded
                 }
             }
@@ -477,6 +463,17 @@ class LibraryActivity : AppCompatActivity() {
                 ?.trim()
                 ?: ""
         )
+    }
+
+    private fun saveSortType() {
+
+        getPreferences(MODE_PRIVATE)
+            .edit()
+            .putString(
+                "sort_type",
+                sortType.name
+            )
+            .apply()
     }
 
     private fun filterSongs(
@@ -599,11 +596,8 @@ class LibraryActivity : AppCompatActivity() {
 
             checkBox.visibility =
                 if (selectionMode) {
-
                     View.VISIBLE
-
                 } else {
-
                     View.GONE
                 }
 
@@ -613,7 +607,6 @@ class LibraryActivity : AppCompatActivity() {
                 )
 
             checkBox.setOnCheckedChangeListener {
-
                     _, checked ->
 
                 if (checked) {
@@ -632,13 +625,6 @@ class LibraryActivity : AppCompatActivity() {
                 updateSelectionUI()
             }
 
-            /*
-             * Normal tap:
-             * play the song.
-             *
-             * Selection mode:
-             * select/unselect the song.
-             */
             row.setOnClickListener {
 
                 if (selectionMode) {
@@ -654,11 +640,6 @@ class LibraryActivity : AppCompatActivity() {
                 }
             }
 
-            /*
-             * LONG PRESS:
-             * enter selection mode and select
-             * the song that was long-pressed.
-             */
             row.setOnLongClickListener {
 
                 if (!selectionMode) {
@@ -829,6 +810,8 @@ class LibraryActivity : AppCompatActivity() {
                     sortType =
                         SortType.TITLE
 
+                    saveSortType()
+
                     sortAudioList()
                 }
 
@@ -836,6 +819,8 @@ class LibraryActivity : AppCompatActivity() {
 
                     sortType =
                         SortType.ARTIST
+
+                    saveSortType()
 
                     sortAudioList()
                 }
@@ -845,6 +830,8 @@ class LibraryActivity : AppCompatActivity() {
                     sortType =
                         SortType.ALBUM
 
+                    saveSortType()
+
                     sortAudioList()
                 }
 
@@ -852,6 +839,8 @@ class LibraryActivity : AppCompatActivity() {
 
                     sortType =
                         SortType.DATE_ADDED
+
+                    saveSortType()
 
                     sortAudioList()
                 }
@@ -930,6 +919,22 @@ class LibraryActivity : AppCompatActivity() {
         showSongs()
     }
 
+    /*
+     * IMPORTANT:
+     *
+     * When the user taps ONE song, we now put
+     * ALL songs from the current library into
+     * the Media3 playlist.
+     *
+     * The tapped song becomes the starting item.
+     *
+     * This fixes:
+     * - Previous
+     * - Next
+     * - Notification Previous
+     * - Notification Next
+     * - Automatic next song
+     */
     private fun playSingleSong(
         song: AudioItem
     ) {
@@ -948,16 +953,41 @@ class LibraryActivity : AppCompatActivity() {
             return
         }
 
-        val mediaItem =
-            createMediaItem(
-                song
-            )
+        if (audioList.isEmpty()) {
+            return
+        }
 
+        /*
+         * Use the currently sorted library.
+         */
+        val playlist =
+            audioList.map {
+                createMediaItem(it)
+            }
+
+        /*
+         * Find the position of the song that
+         * the user actually tapped.
+         */
+        val startIndex =
+            audioList.indexOfFirst {
+                it.id == song.id
+            }
+
+        val safeIndex =
+            if (startIndex >= 0) {
+                startIndex
+            } else {
+                0
+            }
+
+        /*
+         * IMPORTANT:
+         * set ALL media items, not just one.
+         */
         controller.setMediaItems(
-            listOf(
-                mediaItem
-            ),
-            0,
+            playlist,
+            safeIndex,
             0L
         )
 
@@ -1011,9 +1041,7 @@ class LibraryActivity : AppCompatActivity() {
         val mediaItems =
             selectedSongs.map {
 
-                createMediaItem(
-                    it
-                )
+                createMediaItem(it)
             }
 
         controller.setMediaItems(
@@ -1034,15 +1062,6 @@ class LibraryActivity : AppCompatActivity() {
         )
     }
 
-    /*
-     * Delete selected audio.
-     *
-     * Android 11+:
-     * show the official Android delete confirmation.
-     *
-     * Older Android:
-     * try direct deletion.
-     */
     private fun deleteSelectedSongs() {
 
         val selectedSongs =
@@ -1083,17 +1102,17 @@ class LibraryActivity : AppCompatActivity() {
                     )
 
                 val request =
-                    IntentSenderRequest.Builder(
-                        pendingIntent.intentSender
-                    ).build()
+                    androidx.activity.result.IntentSenderRequest
+                        .Builder(
+                            pendingIntent.intentSender
+                        )
+                        .build()
 
                 deletePermissionLauncher.launch(
                     request
                 )
 
-            } catch (
-                exception: Exception
-            ) {
+            } catch (_: Exception) {
 
                 Toast.makeText(
                     this,
