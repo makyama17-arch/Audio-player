@@ -5,113 +5,148 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:gravity="center_horizontal"
-    android:padding="24dp"
     android:background="@drawable/player_background">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/app_name"
-        android:textColor="@android:color/white"
-        android:textSize="24sp"
-        android:textStyle="bold"
-        android:layout_marginTop="20dp"
-        android:layout_marginBottom="25dp" />
-
-    <ImageView
-        android:id="@+id/cover"
-        android:layout_width="220dp"
-        android:layout_height="220dp"
-        android:src="@drawable/makyama_logo"
-        android:scaleType="centerInside"
-        android:contentDescription="@string/app_name" />
-
-    <TextView
-        android:id="@+id/songTitle"
+    <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Hakuna audio"
-        android:textColor="@android:color/white"
-        android:textSize="21sp"
-        android:textStyle="bold"
-        android:gravity="center"
-        android:maxLines="2"
-        android:ellipsize="end"
-        android:layout_marginTop="25dp" />
+        android:layout_height="match_parent"
+        android:fillViewport="true">
 
-    <TextView
-        android:id="@+id/artistName"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Unknown Artist"
-        android:textColor="#B8C7D9"
-        android:textSize="15sp"
-        android:gravity="center"
-        android:layout_marginTop="6dp" />
-
-    <SeekBar
-        android:id="@+id/seekBar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="25dp" />
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal">
-
-        <TextView
-            android:id="@+id/currentTime"
-            android:layout_width="0dp"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="00:00"
-            android:textColor="#B8C7D9" />
+            android:orientation="vertical"
+            android:padding="20dp">
 
-        <TextView
-            android:id="@+id/totalTime"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="00:00"
-            android:textColor="#B8C7D9" />
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/app_name"
+                android:textColor="@android:color/white"
+                android:textSize="24sp"
+                android:textStyle="bold"
+                android:gravity="center"
+                android:layout_marginTop="10dp"
+                android:layout_marginBottom="20dp" />
 
-    </LinearLayout>
+            <ImageView
+                android:id="@+id/cover"
+                android:layout_width="220dp"
+                android:layout_height="220dp"
+                android:layout_gravity="center"
+                android:src="@drawable/makyama_logo"
+                android:scaleType="centerInside"
+                android:contentDescription="@string/app_name" />
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center"
-        android:orientation="horizontal"
-        android:layout_marginTop="20dp">
+            <TextView
+                android:id="@+id/songTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Hakuna audio"
+                android:textColor="@android:color/white"
+                android:textSize="21sp"
+                android:textStyle="bold"
+                android:gravity="center"
+                android:maxLines="2"
+                android:ellipsize="end"
+                android:layout_marginTop="20dp" />
 
-        <ImageButton
-            android:id="@+id/previousButton"
-            android:layout_width="60dp"
-            android:layout_height="60dp"
-            android:background="@android:color/transparent"
-            android:src="@android:drawable/ic_media_previous"
-            android:tint="@android:color/white"
-            android:contentDescription="Previous" />
+            <TextView
+                android:id="@+id/artistName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Unknown Artist"
+                android:textColor="#B8C7D9"
+                android:textSize="15sp"
+                android:gravity="center"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:layout_marginTop="5dp" />
 
-        <ImageButton
-            android:id="@+id/playButton"
-            android:layout_width="75dp"
-            android:layout_height="75dp"
-            android:background="@android:color/transparent"
-            android:src="@android:drawable/ic_media_play"
-            android:tint="@android:color/white"
-            android:contentDescription="Play" />
+            <SeekBar
+                android:id="@+id/seekBar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp" />
 
-        <ImageButton
-            android:id="@+id/nextButton"
-            android:layout_width="60dp"
-            android:layout_height="60dp"
-            android:background="@android:color/transparent"
-            android:src="@android:drawable/ic_media_next"
-            android:tint="@android:color/white"
-            android:contentDescription="Next" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
 
-    </LinearLayout>
+                <TextView
+                    android:id="@+id/currentTime"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="00:00"
+                    android:textColor="#B8C7D9"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/totalTime"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="00:00"
+                    android:textColor="#B8C7D9"
+                    android:textSize="12sp" />
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:orientation="horizontal"
+                android:layout_marginTop="10dp"
+                android:layout_marginBottom="25dp">
+
+                <ImageButton
+                    android:id="@+id/previousButton"
+                    android:layout_width="65dp"
+                    android:layout_height="65dp"
+                    android:background="@android:color/transparent"
+                    android:src="@android:drawable/ic_media_previous"
+                    android:tint="@android:color/white"
+                    android:contentDescription="Previous" />
+
+                <ImageButton
+                    android:id="@+id/playButton"
+                    android:layout_width="80dp"
+                    android:layout_height="80dp"
+                    android:background="@android:color/transparent"
+                    android:src="@android:drawable/ic_media_play"
+                    android:tint="@android:color/white"
+                    android:contentDescription="Play" />
+
+                <ImageButton
+                    android:id="@+id/nextButton"
+                    android:layout_width="65dp"
+                    android:layout_height="65dp"
+                    android:background="@android:color/transparent"
+                    android:src="@android:drawable/ic_media_next"
+                    android:tint="@android:color/white"
+                    android:contentDescription="Next" />
+
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="MY MUSIC"
+                android:textColor="@android:color/white"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:layout_marginBottom="10dp" />
+
+            <LinearLayout
+                android:id="@+id/playlistContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+
+        </LinearLayout>
+
+    </ScrollView>
 
 </LinearLayout>
