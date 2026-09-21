@@ -5,8 +5,9 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
-import android.widget.Button
+import android.view.LayoutInflater
 import android.widget.ImageButton
+import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.TextView
 import android.widget.Toast
@@ -15,6 +16,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
@@ -22,8 +24,8 @@ import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var controllerFuture: ListenableFuture<MediaController>
     private var controller: MediaController? = null
+    private lateinit var controllerFuture: ListenableFuture<MediaController>
 
     private lateinit var songTitle: TextView
     private lateinit var artistName: TextView
@@ -35,6 +37,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var previousButton: ImageButton
     private lateinit var nextButton: ImageButton
 
+    private lateinit var playlistContainer: LinearLayout
+
     private val audioList = ArrayList<AudioItem>()
 
     private val permissionLauncher =
@@ -42,14 +46,19 @@ class MainActivity : AppCompatActivity() {
             ActivityResultContracts.RequestMultiplePermissions()
         ) { permissions ->
 
-            val granted = permissions.values.any { it }
+            val audioGranted =
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    permissions[Manifest.permission.READ_MEDIA_AUDIO] == true
+                } else {
+                    permissions[Manifest.permission.READ_EXTERNAL_STORAGE] == true
+                }
 
-            if (granted) {
+            if (audioGranted) {
                 loadAudioFiles()
             } else {
                 Toast.makeText(
                     this,
-                    "Ruhusu access ya audio ili app ionyeshe nyimbo.",
+                    "Ruhusu app access ya audio zako.",
                     Toast.LENGTH_LONG
                 ).show()
             }
@@ -70,6 +79,8 @@ class MainActivity : AppCompatActivity() {
         previousButton = findViewById(R.id.previousButton)
         nextButton = findViewById(R.id.nextButton)
 
+        playlistContainer = findViewById(R.id.playlistContainer)
+
         playButton.setOnClickListener {
             controller?.let {
                 if (it.isPlaying) {
@@ -77,8 +88,6 @@ class MainActivity : AppCompatActivity() {
                 } else {
                     it.play()
                 }
-
-                updatePlayButton()
             }
         }
 
@@ -99,15 +108,22 @@ class MainActivity : AppCompatActivity() {
                     fromUser: Boolean
                 ) {
                     if (fromUser) {
-                        currentTime.text = formatTime(progress.toLong())
+                        currentTime.text =
+                            formatTime(progress.toLong())
                     }
                 }
 
-                override fun onStartTrackingTouch(seekBar: SeekBar?) {
+                override fun onStartTrackingTouch(
+                    seekBar: SeekBar?
+                ) {
                 }
 
-                override fun onStopTrackingTouch(seekBar: SeekBar?) {
-                    controller?.seekTo(seekBar?.progress?.toLong() ?: 0L)
+                override fun onStopTrackingTouch(
+                    seekBar: SeekBar?
+                ) {
+                    controller?.seekTo(
+                        seekBar?.progress?.toLong() ?: 0L
+                    )
                 }
             }
         )
@@ -126,19 +142,23 @@ class MainActivity : AppCompatActivity() {
             )
         )
 
-        controllerFuture = MediaController.Builder(
-            this,
-            sessionToken
-        ).buildAsync()
+        controllerFuture =
+            MediaController.Builder(
+                this,
+                sessionToken
+            ).buildAsync()
 
         controllerFuture.addListener(
             {
+
                 controller = controllerFuture.get()
 
                 controller?.addListener(
-                    object : androidx.media3.common.Player.Listener {
+                    object : Player.Listener {
 
-                        override fun onIsPlayingChanged(isPlaying: Boolean) {
+                        override fun onIsPlayingChanged(
+                            isPlaying: Boolean
+                        ) {
                             updatePlayButton()
                         }
 
@@ -149,7 +169,17 @@ class MainActivity : AppCompatActivity() {
                             updateCurrentSong()
                         }
 
-                        override fun onPlaybackStateChanged(playbackState: Int) {
+                        override fun onPlaybackStateChanged(
+                            playbackState: Int
+                        ) {
+                            updateProgress()
+                        }
+
+                        override fun onPositionDiscontinuity(
+                            oldPosition: Player.PositionInfo,
+                            newPosition: Player.PositionInfo,
+                            reason: Int
+                        ) {
                             updateProgress()
                         }
                     }
@@ -168,6 +198,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onStop() {
+
         controller?.release()
         controller = null
 
@@ -176,7 +207,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun checkPermissions() {
 
-        val permissions = mutableListOf<String>()
+        val permissions = ArrayList<String>()
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
 
@@ -186,7 +217,9 @@ class MainActivity : AppCompatActivity() {
                     Manifest.permission.READ_MEDIA_AUDIO
                 ) != PackageManager.PERMISSION_GRANTED
             ) {
-                permissions.add(Manifest.permission.READ_MEDIA_AUDIO)
+                permissions.add(
+                    Manifest.permission.READ_MEDIA_AUDIO
+                )
             }
 
             if (
@@ -195,7 +228,9 @@ class MainActivity : AppCompatActivity() {
                     Manifest.permission.POST_NOTIFICATIONS
                 ) != PackageManager.PERMISSION_GRANTED
             ) {
-                permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+                permissions.add(
+                    Manifest.permission.POST_NOTIFICATIONS
+                )
             }
 
         } else {
@@ -206,14 +241,18 @@ class MainActivity : AppCompatActivity() {
                     Manifest.permission.READ_EXTERNAL_STORAGE
                 ) != PackageManager.PERMISSION_GRANTED
             ) {
-                permissions.add(Manifest.permission.READ_EXTERNAL_STORAGE)
+                permissions.add(
+                    Manifest.permission.READ_EXTERNAL_STORAGE
+                )
             }
         }
 
         if (permissions.isEmpty()) {
             loadAudioFiles()
         } else {
-            permissionLauncher.launch(permissions.toTypedArray())
+            permissionLauncher.launch(
+                permissions.toTypedArray()
+            )
         }
     }
 
@@ -223,10 +262,13 @@ class MainActivity : AppCompatActivity() {
 
         val collection =
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+
                 MediaStore.Audio.Media.getContentUri(
                     MediaStore.VOLUME_EXTERNAL
                 )
+
             } else {
+
                 MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
             }
 
@@ -279,7 +321,8 @@ class MainActivity : AppCompatActivity() {
 
             while (cursor.moveToNext()) {
 
-                val id = cursor.getLong(idColumn)
+                val id =
+                    cursor.getLong(idColumn)
 
                 val title =
                     cursor.getString(titleColumn)
@@ -315,78 +358,212 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        preparePlaylist()
+        showPlaylist()
 
-        updateCurrentSong()
+        preparePlaylist()
     }
 
-    private fun preparePlaylist() {
+    private fun showPlaylist() {
 
-        val mediaController = controller ?: return
+        playlistContainer.removeAllViews()
 
         if (audioList.isEmpty()) {
 
-            songTitle.text = "Hakuna audio"
-            artistName.text = "Weka MP3/M4A/WAV kwenye simu"
+            val emptyText = TextView(this)
+
+            emptyText.text =
+                "Hakuna audio zilizopatikana kwenye simu."
+
+            emptyText.textSize = 16f
+            emptyText.setTextColor(
+                android.graphics.Color.WHITE
+            )
+
+            emptyText.setPadding(
+                16,
+                30,
+                16,
+                30
+            )
+
+            playlistContainer.addView(emptyText)
 
             return
         }
 
-        val mediaItems = audioList.map { audio ->
+        val inflater =
+            LayoutInflater.from(this)
 
-            MediaItem.Builder()
-                .setUri(audio.uri)
-                .setMediaMetadata(
-                    MediaMetadata.Builder()
-                        .setTitle(audio.title)
-                        .setArtist(audio.artist)
-                        .setAlbumTitle(audio.album)
-                        .build()
+        audioList.forEachIndexed { index, audio ->
+
+            val row =
+                inflater.inflate(
+                    R.layout.audio_row,
+                    playlistContainer,
+                    false
                 )
-                .build()
+
+            val title =
+                row.findViewById<TextView>(
+                    R.id.audioTitle
+                )
+
+            val artist =
+                row.findViewById<TextView>(
+                    R.id.audioArtist
+                )
+
+            title.text = audio.title
+            artist.text = audio.artist
+
+            row.setOnClickListener {
+
+                playAudio(index)
+            }
+
+            playlistContainer.addView(row)
+        }
+    }
+
+    private fun preparePlaylist() {
+
+        val mediaController =
+            controller ?: return
+
+        if (audioList.isEmpty()) {
+            return
         }
 
-        mediaController.setMediaItems(mediaItems)
+        val mediaItems =
+            audioList.map { audio ->
+
+                MediaItem.Builder()
+                    .setUri(audio.uri)
+                    .setMediaMetadata(
+                        MediaMetadata.Builder()
+                            .setTitle(audio.title)
+                            .setArtist(audio.artist)
+                            .setAlbumTitle(audio.album)
+                            .build()
+                    )
+                    .build()
+            }
+
+        mediaController.setMediaItems(
+            mediaItems
+        )
+
         mediaController.prepare()
+
+        updateCurrentSong()
+    }
+
+    private fun playAudio(index: Int) {
+
+        val mediaController =
+            controller ?: return
+
+        if (
+            index < 0 ||
+            index >= audioList.size
+        ) {
+            return
+        }
+
+        mediaController.seekToDefaultPosition(index)
+
+        mediaController.play()
 
         updateCurrentSong()
     }
 
     private fun updateCurrentSong() {
 
-        val mediaController = controller ?: return
-        val index = mediaController.currentMediaItemIndex
+        val mediaController =
+            controller ?: return
 
-        if (index >= 0 && index < audioList.size) {
+        val index =
+            mediaController.currentMediaItemIndex
 
-            val audio = audioList[index]
+        if (
+            index >= 0 &&
+            index < audioList.size
+        ) {
 
-            songTitle.text = audio.title
-            artistName.text = audio.artist
+            val audio =
+                audioList[index]
+
+            songTitle.text =
+                audio.title
+
+            artistName.text =
+                audio.artist
 
             totalTime.text =
                 formatTime(audio.duration)
 
             seekBar.max =
-                audio.duration.toInt()
+                audio.duration
+                    .coerceAtMost(
+                        Int.MAX_VALUE.toLong()
+                    )
+                    .toInt()
+
+            highlightCurrentSong(index)
+        }
+    }
+
+    private fun highlightCurrentSong(
+        currentIndex: Int
+    ) {
+
+        for (
+            i in 0 until playlistContainer.childCount
+        ) {
+
+            val child =
+                playlistContainer.getChildAt(i)
+
+            if (i == currentIndex) {
+
+                child.alpha = 1.0f
+
+            } else {
+
+                child.alpha = 0.65f
+            }
         }
     }
 
     private fun updateProgress() {
 
-        val mediaController = controller ?: return
+        val mediaController =
+            controller ?: return
 
         val position =
-            mediaController.currentPosition.coerceAtLeast(0L)
+            mediaController.currentPosition
+                .coerceAtLeast(0L)
 
         val duration =
-            mediaController.duration.coerceAtLeast(0L)
+            mediaController.duration
+                .coerceAtLeast(0L)
 
-        seekBar.max =
-            duration.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+        if (duration > 0) {
 
-        seekBar.progress =
-            position.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+            seekBar.max =
+                duration
+                    .coerceAtMost(
+                        Int.MAX_VALUE.toLong()
+                    )
+                    .toInt()
+
+            seekBar.progress =
+                position
+                    .coerceAtMost(
+                        Int.MAX_VALUE.toLong()
+                    )
+                    .toInt()
+        }
 
         currentTime.text =
             formatTime(position)
@@ -397,20 +574,26 @@ class MainActivity : AppCompatActivity() {
 
     private fun updatePlayButton() {
 
-        val mediaController = controller ?: return
+        val mediaController =
+            controller ?: return
 
         if (mediaController.isPlaying) {
+
             playButton.setImageResource(
                 android.R.drawable.ic_media_pause
             )
+
         } else {
+
             playButton.setImageResource(
                 android.R.drawable.ic_media_play
             )
         }
     }
 
-    private fun formatTime(milliseconds: Long): String {
+    private fun formatTime(
+        milliseconds: Long
+    ): String {
 
         val totalSeconds =
             milliseconds / 1000
