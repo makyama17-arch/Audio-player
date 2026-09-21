@@ -11,9 +11,7 @@ import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.SeekBar
 import android.widget.TextView
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
@@ -38,8 +36,18 @@ class PlayerActivity : AppCompatActivity() {
     private lateinit var emptyText: TextView
     private lateinit var openLibraryButton: Button
 
-    private val handler =
-        Handler(Looper.getMainLooper())
+    // Speed inayofuata kila unapobonyeza button.
+    private val speedOptions = floatArrayOf(
+        0.75f,
+        1.0f,
+        1.25f,
+        1.5f,
+        2.0f
+    )
+
+    private var currentSpeedIndex = 1
+
+    private val handler = Handler(Looper.getMainLooper())
 
     private val progressRunnable =
         object : Runnable {
@@ -63,101 +71,91 @@ class PlayerActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        setContentView(
-            R.layout.activity_player
-        )
+        setContentView(R.layout.activity_player)
 
-        thumbnail =
-            findViewById(R.id.playerThumbnail)
+        thumbnail = findViewById(R.id.playerThumbnail)
+        titleText = findViewById(R.id.playerTitle)
+        artistText = findViewById(R.id.playerArtist)
+        currentTimeText = findViewById(R.id.currentTime)
+        durationText = findViewById(R.id.durationTime)
+        seekBar = findViewById(R.id.playerSeekBar)
+        playButton = findViewById(R.id.playButton)
+        shuffleButton = findViewById(R.id.shuffleButton)
+        speedButton = findViewById(R.id.speedButton)
+        emptyText = findViewById(R.id.emptyPlayerText)
+        openLibraryButton = findViewById(R.id.openLibraryButton)
 
-        titleText =
-            findViewById(R.id.playerTitle)
-
-        artistText =
-            findViewById(R.id.playerArtist)
-
-        currentTimeText =
-            findViewById(R.id.currentTime)
-
-        durationText =
-            findViewById(R.id.durationTime)
-
-        seekBar =
-            findViewById(R.id.playerSeekBar)
-
-        playButton =
-            findViewById(R.id.playButton)
-
-        shuffleButton =
-            findViewById(R.id.shuffleButton)
-
-        speedButton =
-            findViewById(R.id.speedButton)
-
-        emptyText =
-            findViewById(R.id.emptyPlayerText)
-
-        openLibraryButton =
-            findViewById(R.id.openLibraryButton)
-
+        // PLAY / PAUSE
         playButton.setOnClickListener {
-            controller?.let {
-                if (it.isPlaying) {
-                    it.pause()
+            controller?.let { player ->
+                if (player.isPlaying) {
+                    player.pause()
                 } else {
-                    it.play()
+                    player.play()
                 }
             }
         }
 
-        findViewById<ImageButton>(
-            R.id.previousButton
-        ).setOnClickListener {
-            controller?.seekToPreviousMediaItem()
-        }
-
-        findViewById<ImageButton>(
-            R.id.nextButton
-        ).setOnClickListener {
-            controller?.seekToNextMediaItem()
-        }
-
-        findViewById<ImageButton>(
-            R.id.rewindButton
-        ).setOnClickListener {
-            controller?.let {
-                it.seekTo(
-                    (it.currentPosition - 10_000L)
-                        .coerceAtLeast(0L)
-                )
+        // PREVIOUS
+        findViewById<ImageButton>(R.id.previousButton).setOnClickListener {
+            controller?.let { player ->
+                if (player.hasPreviousMediaItem()) {
+                    player.seekToPreviousMediaItem()
+                }
             }
         }
 
-        findViewById<ImageButton>(
-            R.id.forwardButton
-        ).setOnClickListener {
-            controller?.let {
+        // NEXT
+        findViewById<ImageButton>(R.id.nextButton).setOnClickListener {
+            controller?.let { player ->
+                if (player.hasNextMediaItem()) {
+                    player.seekToNextMediaItem()
+                }
+            }
+        }
+
+        // REWIND 10 SECONDS
+        findViewById<ImageButton>(R.id.rewindButton).setOnClickListener {
+            controller?.let { player ->
                 val newPosition =
-                    (it.currentPosition + 10_000L)
-                        .coerceAtMost(it.duration)
+                    (player.currentPosition - 10_000L)
+                        .coerceAtLeast(0L)
 
-                it.seekTo(newPosition)
+                player.seekTo(newPosition)
             }
         }
 
-        shuffleButton.setOnClickListener {
-            controller?.let {
-                it.shuffleModeEnabled =
-                    !it.shuffleModeEnabled
+        // FORWARD 10 SECONDS
+        findViewById<ImageButton>(R.id.forwardButton).setOnClickListener {
+            controller?.let { player ->
+                val duration = player.duration
 
+                val newPosition =
+                    if (duration > 0) {
+                        (player.currentPosition + 10_000L)
+                            .coerceAtMost(duration)
+                    } else {
+                        player.currentPosition + 10_000L
+                    }
+
+                player.seekTo(newPosition)
+            }
+        }
+
+        // SHUFFLE
+        shuffleButton.setOnClickListener {
+            controller?.let { player ->
+                player.shuffleModeEnabled = !player.shuffleModeEnabled
                 updateShuffleButton()
             }
         }
 
+        // SPEED
         speedButton.setOnClickListener {
             changeSpeed()
         }
 
+        // OPEN MUSIC
         openLibraryButton.setOnClickListener {
             startActivity(
                 android.content.Intent(
@@ -167,6 +165,7 @@ class PlayerActivity : AppCompatActivity() {
             )
         }
 
+        // SEEK BAR
         seekBar.setOnSeekBarChangeListener(
             object : SeekBar.OnSeekBarChangeListener {
 
@@ -176,13 +175,15 @@ class PlayerActivity : AppCompatActivity() {
                     fromUser: Boolean
                 ) {
                     if (fromUser) {
-                        controller?.let {
-                            if (it.duration > 0) {
-                                val position =
-                                    it.duration *
-                                            progress / 100L
+                        controller?.let { player ->
 
-                                it.seekTo(position)
+                            val duration = player.duration
+
+                            if (duration > 0) {
+                                val position =
+                                    duration * progress / 100L
+
+                                player.seekTo(position)
                             }
                         }
                     }
@@ -199,6 +200,8 @@ class PlayerActivity : AppCompatActivity() {
                 }
             }
         )
+
+        updateSpeedButton()
     }
 
     override fun onStart() {
@@ -222,32 +225,23 @@ class PlayerActivity : AppCompatActivity() {
         controllerFuture.addListener(
             {
                 try {
-
-                    controller =
-                        controllerFuture.get()
+                    controller = controllerFuture.get()
 
                     controller?.addListener(
                         playerListener
                     )
 
-                    /*
-                     * IMPORTANT:
-                     * We only connect to the existing player.
-                     * We DO NOT reset the playlist here.
-                     *
-                     * This means locking/unlocking the phone
-                     * will not restart or stop playback.
-                     */
+                    // Soma speed yetu na player.
+                    controller?.setPlaybackSpeed(
+                        speedOptions[currentSpeedIndex]
+                    )
 
                     updatePlayerUI()
 
-                    handler.post(
-                        progressRunnable
-                    )
+                    handler.post(progressRunnable)
 
                 } catch (_: Exception) {
                 }
-
             },
             MoreExecutors.directExecutor()
         )
@@ -277,7 +271,8 @@ class PlayerActivity : AppCompatActivity() {
 
         val player = controller
 
-        if (player == null ||
+        if (
+            player == null ||
             player.mediaItemCount == 0
         ) {
             showEmptyPlayer()
@@ -312,26 +307,38 @@ class PlayerActivity : AppCompatActivity() {
 
         updatePlayButton()
         updateShuffleButton()
+        updateSpeedButton()
         updateProgress()
     }
 
     private fun showEmptyPlayer() {
 
-        emptyText.visibility = View.VISIBLE
-        openLibraryButton.visibility = View.VISIBLE
+        emptyText.visibility =
+            View.VISIBLE
 
-        thumbnail.visibility = View.VISIBLE
+        openLibraryButton.visibility =
+            View.VISIBLE
+
+        thumbnail.visibility =
+            View.VISIBLE
+
         thumbnail.setImageResource(
             R.drawable.makyama_logo
         )
 
-        titleText.text = "No audio selected"
-        artistText.text = "Open Music to choose a song"
+        titleText.text =
+            "No audio selected"
+
+        artistText.text =
+            "Open Music to choose a song"
 
         seekBar.progress = 0
 
-        currentTimeText.text = "0:00"
-        durationText.text = "0:00"
+        currentTimeText.text =
+            "0:00"
+
+        durationText.text =
+            "0:00"
 
         playButton.setImageResource(
             android.R.drawable.ic_media_play
@@ -340,13 +347,14 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun updatePlayButton() {
 
-        val player = controller
+        if (controller?.isPlaying == true) {
 
-        if (player?.isPlaying == true) {
             playButton.setImageResource(
                 android.R.drawable.ic_media_pause
             )
+
         } else {
+
             playButton.setImageResource(
                 android.R.drawable.ic_media_play
             )
@@ -355,23 +363,60 @@ class PlayerActivity : AppCompatActivity() {
 
     private fun updateShuffleButton() {
 
-        val enabled =
-            controller?.shuffleModeEnabled == true
-
         shuffleButton.text =
-            if (enabled) {
+            if (
+                controller?.shuffleModeEnabled == true
+            ) {
                 "SHUFFLE: ON"
             } else {
                 "SHUFFLE: OFF"
             }
     }
 
-    private fun updateProgress() {
+    private fun changeSpeed() {
 
         val player = controller
             ?: return
 
-        if (player.mediaItemCount == 0) {
+        // Nenda kwenye speed inayofuata.
+        currentSpeedIndex++
+
+        if (
+            currentSpeedIndex >= speedOptions.size
+        ) {
+            currentSpeedIndex = 0
+        }
+
+        val newSpeed =
+            speedOptions[currentSpeedIndex]
+
+        // Hapa ndiyo speed halisi ya ExoPlayer
+        // inabadilishwa.
+        player.setPlaybackSpeed(
+            newSpeed
+        )
+
+        updateSpeedButton()
+    }
+
+    private fun updateSpeedButton() {
+
+        val speed =
+            speedOptions[currentSpeedIndex]
+
+        speedButton.text =
+            "SPEED ${speed}x"
+    }
+
+    private fun updateProgress() {
+
+        val player =
+            controller
+                ?: return
+
+        if (
+            player.mediaItemCount == 0
+        ) {
             return
         }
 
@@ -384,20 +429,29 @@ class PlayerActivity : AppCompatActivity() {
         if (duration > 0) {
 
             seekBar.progress =
-                ((position * 100L) / duration)
+                (
+                    (position * 100L) /
+                        duration
+                    )
                     .toInt()
-                    .coerceIn(0, 100)
+                    .coerceIn(
+                        0,
+                        100
+                    )
         }
 
         currentTimeText.text =
             formatTime(position)
 
-        durationTimeText(duration)
+        durationTimeText(
+            duration
+        )
     }
 
     private fun durationTimeText(
         duration: Long
     ) {
+
         durationText.text =
             formatTime(
                 if (duration > 0) {
@@ -412,7 +466,9 @@ class PlayerActivity : AppCompatActivity() {
         milliseconds: Long
     ): String {
 
-        if (milliseconds <= 0) {
+        if (
+            milliseconds <= 0
+        ) {
             return "0:00"
         }
 
@@ -432,39 +488,16 @@ class PlayerActivity : AppCompatActivity() {
         )
     }
 
-    private fun changeSpeed() {
-
-        val player = controller
-            ?: return
-
-        val currentSpeed =
-            player.playbackParameters.speed
-
-        val newSpeed =
-            when {
-                currentSpeed < 0.76f -> 1.0f
-                currentSpeed < 1.26f -> 1.25f
-                currentSpeed < 1.51f -> 1.5f
-                currentSpeed < 2.01f -> 2.0f
-                else -> 0.75f
-            }
-
-        player.setPlaybackSpeed(
-            newSpeed
-        )
-
-        speedButton.text =
-            "SPEED ${newSpeed}x"
-    }
-
     private fun loadEmbeddedArtwork(
         uri: Uri?
     ) {
 
         if (uri == null) {
+
             thumbnail.setImageResource(
                 R.drawable.makyama_logo
             )
+
             return
         }
 
@@ -475,7 +508,8 @@ class PlayerActivity : AppCompatActivity() {
         Thread {
 
             var retriever:
-                    MediaMetadataRetriever? = null
+                MediaMetadataRetriever? =
+                null
 
             try {
 
@@ -502,6 +536,7 @@ class PlayerActivity : AppCompatActivity() {
                     runOnUiThread {
 
                         if (!isFinishing) {
+
                             thumbnail.setImageBitmap(
                                 bitmap
                             )
@@ -512,12 +547,14 @@ class PlayerActivity : AppCompatActivity() {
             } catch (_: Exception) {
 
                 runOnUiThread {
+
                     thumbnail.setImageResource(
                         R.drawable.makyama_logo
                     )
                 }
 
             } finally {
+
                 try {
                     retriever?.release()
                 } catch (_: Exception) {
