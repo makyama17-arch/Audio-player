@@ -2,15 +2,23 @@ package com.makyama.audioplayer
 
 import android.Manifest
 import android.content.ContentUris
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
-import android.provider.MediaStore
+import android.text.Editable
+import android.text.TextWatcher
 import android.view.LayoutInflater
+import android.view.View
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.CheckBox
+import android.widget.EditText
+import android.widget.ImageButton
 import android.widget.ImageView
-import android.widget.Spinner
+import android.widget.LinearLayout
+import android.widget.PopupMenu
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -28,12 +36,18 @@ class LibraryActivity : AppCompatActivity() {
     private lateinit var controllerFuture: ListenableFuture<MediaController>
     private var mediaController: MediaController? = null
 
-    private lateinit var songsContainer: android.widget.LinearLayout
-    private lateinit var playSelectedButton: Button
-    private lateinit var sortSpinner: Spinner
+    private lateinit var songsContainer: LinearLayout
     private lateinit var emptyText: TextView
+    private lateinit var songCountText: TextView
+    private lateinit var searchEditText: EditText
+    private lateinit var menuButton: ImageButton
+    private lateinit var selectedActionBar: LinearLayout
+    private lateinit var selectedCountText: TextView
+    private lateinit var playSelectedButton: Button
 
     private var audioList = mutableListOf<AudioItem>()
+    private var displayedList = mutableListOf<AudioItem>()
+
     private val selectedIds = mutableSetOf<Long>()
 
     private enum class SortType {
@@ -44,11 +58,13 @@ class LibraryActivity : AppCompatActivity() {
     }
 
     private var sortType = SortType.TITLE
+    private var selectionMode = false
 
     private val permissionLauncher =
         registerForActivityResult(
             ActivityResultContracts.RequestPermission()
         ) { granted ->
+
             if (granted) {
                 loadAudioFiles()
             } else {
@@ -65,16 +81,39 @@ class LibraryActivity : AppCompatActivity() {
 
         setContentView(R.layout.library_activity)
 
-        songsContainer = findViewById(R.id.songsContainer)
-        playSelectedButton = findViewById(R.id.playSelectedButton)
-        sortSpinner = findViewById(R.id.sortSpinner)
-        emptyText = findViewById(R.id.emptyText)
+        songsContainer =
+            findViewById(R.id.songsContainer)
 
-        setupSort()
+        emptyText =
+            findViewById(R.id.emptyText)
+
+        songCountText =
+            findViewById(R.id.songCountText)
+
+        searchEditText =
+            findViewById(R.id.searchMusicEditText)
+
+        menuButton =
+            findViewById(R.id.libraryMenuButton)
+
+        selectedActionBar =
+            findViewById(R.id.selectedActionBar)
+
+        selectedCountText =
+            findViewById(R.id.selectedCountText)
+
+        playSelectedButton =
+            findViewById(R.id.playSelectedButton)
+
+        menuButton.setOnClickListener {
+            showLibraryMenu()
+        }
 
         playSelectedButton.setOnClickListener {
             playSelectedSongs()
         }
+
+        setupSearch()
 
         checkPermission()
     }
@@ -82,23 +121,26 @@ class LibraryActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
 
-        val sessionToken = SessionToken(
-            this,
-            android.content.ComponentName(
+        val sessionToken =
+            SessionToken(
                 this,
-                AudioPlayerService::class.java
+                android.content.ComponentName(
+                    this,
+                    AudioPlayerService::class.java
+                )
             )
-        )
 
-        controllerFuture = MediaController.Builder(
-            this,
-            sessionToken
-        ).buildAsync()
+        controllerFuture =
+            MediaController.Builder(
+                this,
+                sessionToken
+            ).buildAsync()
 
         controllerFuture.addListener(
             {
                 try {
-                    mediaController = controllerFuture.get()
+                    mediaController =
+                        controllerFuture.get()
                 } catch (_: Exception) {
                 }
             },
@@ -110,13 +152,16 @@ class LibraryActivity : AppCompatActivity() {
         super.onStop()
 
         mediaController?.let {
-            MediaController.releaseFuture(controllerFuture)
+            MediaController.releaseFuture(
+                controllerFuture
+            )
         }
 
         mediaController = null
     }
 
     private fun checkPermission() {
+
         val permission =
             if (android.os.Build.VERSION.SDK_INT >= 33) {
                 Manifest.permission.READ_MEDIA_AUDIO
@@ -130,54 +175,50 @@ class LibraryActivity : AppCompatActivity() {
                 permission
             ) == PackageManager.PERMISSION_GRANTED
         ) {
+
             loadAudioFiles()
+
         } else {
-            permissionLauncher.launch(permission)
+
+            permissionLauncher.launch(
+                permission
+            )
         }
     }
 
-    private fun setupSort() {
-        val options = arrayOf(
-            "Title",
-            "Artist",
-            "Album",
-            "Date added"
-        )
+    private fun setupSearch() {
 
-        val adapter = android.widget.ArrayAdapter(
-            this,
-            android.R.layout.simple_spinner_dropdown_item,
-            options
-        )
+        searchEditText.addTextChangedListener(
+            object : TextWatcher {
 
-        sortSpinner.adapter = adapter
-
-        sortSpinner.setSelection(0)
-
-        sortSpinner.onItemSelectedListener =
-            object : android.widget.AdapterView.OnItemSelectedListener {
-
-                override fun onNothingSelected(
-                    parent: android.widget.AdapterView<*>?
+                override fun beforeTextChanged(
+                    s: CharSequence?,
+                    start: Int,
+                    count: Int,
+                    after: Int
                 ) {
                 }
 
-                override fun onItemSelected(
-                    parent: android.widget.AdapterView<*>?,
-                    view: android.view.View?,
-                    position: Int,
-                    id: Long
+                override fun onTextChanged(
+                    s: CharSequence?,
+                    start: Int,
+                    before: Int,
+                    count: Int
                 ) {
-                    sortType = when (position) {
-                        0 -> SortType.TITLE
-                        1 -> SortType.ARTIST
-                        2 -> SortType.ALBUM
-                        else -> SortType.DATE_ADDED
-                    }
 
-                    sortAudioList()
+                    filterSongs(
+                        s?.toString()
+                            ?.trim()
+                            ?: ""
+                    )
+                }
+
+                override fun afterTextChanged(
+                    s: Editable?
+                ) {
                 }
             }
+        )
     }
 
     private fun loadAudioFiles() {
@@ -185,23 +226,25 @@ class LibraryActivity : AppCompatActivity() {
         audioList.clear()
 
         val collection =
-            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+            android.provider.MediaStore.Audio.Media
+                .EXTERNAL_CONTENT_URI
 
-        val projection = arrayOf(
-            MediaStore.Audio.Media._ID,
-            MediaStore.Audio.Media.TITLE,
-            MediaStore.Audio.Media.ARTIST,
-            MediaStore.Audio.Media.ALBUM,
-            MediaStore.Audio.Media.DURATION,
-            MediaStore.Audio.Media.DATE_ADDED,
-            MediaStore.Audio.Media.ALBUM_ID
-        )
+        val projection =
+            arrayOf(
+                android.provider.MediaStore.Audio.Media._ID,
+                android.provider.MediaStore.Audio.Media.TITLE,
+                android.provider.MediaStore.Audio.Media.ARTIST,
+                android.provider.MediaStore.Audio.Media.ALBUM,
+                android.provider.MediaStore.Audio.Media.DURATION,
+                android.provider.MediaStore.Audio.Media.DATE_ADDED,
+                android.provider.MediaStore.Audio.Media.ALBUM_ID
+            )
 
         val selection =
-            "${MediaStore.Audio.Media.IS_MUSIC} != 0"
+            "${android.provider.MediaStore.Audio.Media.IS_MUSIC} != 0"
 
         val sortOrder =
-            "${MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC"
+            "${android.provider.MediaStore.Audio.Media.TITLE} COLLATE NOCASE ASC"
 
         contentResolver.query(
             collection,
@@ -213,42 +256,43 @@ class LibraryActivity : AppCompatActivity() {
 
             val idColumn =
                 cursor.getColumnIndexOrThrow(
-                    MediaStore.Audio.Media._ID
+                    android.provider.MediaStore.Audio.Media._ID
                 )
 
             val titleColumn =
                 cursor.getColumnIndexOrThrow(
-                    MediaStore.Audio.Media.TITLE
+                    android.provider.MediaStore.Audio.Media.TITLE
                 )
 
             val artistColumn =
                 cursor.getColumnIndexOrThrow(
-                    MediaStore.Audio.Media.ARTIST
+                    android.provider.MediaStore.Audio.Media.ARTIST
                 )
 
             val albumColumn =
                 cursor.getColumnIndexOrThrow(
-                    MediaStore.Audio.Media.ALBUM
+                    android.provider.MediaStore.Audio.Media.ALBUM
                 )
 
             val durationColumn =
                 cursor.getColumnIndexOrThrow(
-                    MediaStore.Audio.Media.DURATION
+                    android.provider.MediaStore.Audio.Media.DURATION
                 )
 
             val dateColumn =
                 cursor.getColumnIndexOrThrow(
-                    MediaStore.Audio.Media.DATE_ADDED
+                    android.provider.MediaStore.Audio.Media.DATE_ADDED
                 )
 
             val albumIdColumn =
                 cursor.getColumnIndexOrThrow(
-                    MediaStore.Audio.Media.ALBUM_ID
+                    android.provider.MediaStore.Audio.Media.ALBUM_ID
                 )
 
             while (cursor.moveToNext()) {
 
-                val id = cursor.getLong(idColumn)
+                val id =
+                    cursor.getLong(idColumn)
 
                 val title =
                     cursor.getString(titleColumn)
@@ -324,6 +368,49 @@ class LibraryActivity : AppCompatActivity() {
             }
         }
 
+        filterSongs(
+            searchEditText.text
+                ?.toString()
+                ?.trim()
+                ?: ""
+        )
+    }
+
+    private fun filterSongs(
+        query: String
+    ) {
+
+        displayedList.clear()
+
+        if (query.isEmpty()) {
+
+            displayedList.addAll(
+                audioList
+            )
+
+        } else {
+
+            displayedList.addAll(
+                audioList.filter {
+
+                    it.title.contains(
+                        query,
+                        ignoreCase = true
+                    ) ||
+
+                    it.artist.contains(
+                        query,
+                        ignoreCase = true
+                    ) ||
+
+                    it.album.contains(
+                        query,
+                        ignoreCase = true
+                    )
+                }
+            )
+        }
+
         showSongs()
     }
 
@@ -331,18 +418,35 @@ class LibraryActivity : AppCompatActivity() {
 
         songsContainer.removeAllViews()
 
-        if (audioList.isEmpty()) {
-            emptyText.visibility = TextView.VISIBLE
-            playSelectedButton.isEnabled = false
+        songCountText.text =
+            if (displayedList.size == 1) {
+                "1 song"
+            } else {
+                "${displayedList.size} songs"
+            }
+
+        if (displayedList.isEmpty()) {
+
+            emptyText.visibility =
+                View.VISIBLE
+
+            emptyText.text =
+                if (audioList.isEmpty()) {
+                    "No music found on this device."
+                } else {
+                    "No songs match your search."
+                }
+
             return
         }
 
-        emptyText.visibility = TextView.GONE
-        playSelectedButton.isEnabled = true
+        emptyText.visibility =
+            View.GONE
 
-        val inflater = LayoutInflater.from(this)
+        val inflater =
+            LayoutInflater.from(this)
 
-        for (song in audioList) {
+        for (song in displayedList) {
 
             val row =
                 inflater.inflate(
@@ -371,13 +475,23 @@ class LibraryActivity : AppCompatActivity() {
                     R.id.audioCheckBox
                 )
 
-            title.text = song.title
-            artist.text = song.artist
+            title.text =
+                song.title
+
+            artist.text =
+                song.artist
 
             loadAlbumThumbnail(
                 thumbnail,
                 song.albumId
             )
+
+            checkBox.visibility =
+                if (selectionMode) {
+                    View.VISIBLE
+                } else {
+                    View.GONE
+                }
 
             checkBox.isChecked =
                 selectedIds.contains(song.id)
@@ -391,15 +505,18 @@ class LibraryActivity : AppCompatActivity() {
                     selectedIds.remove(song.id)
                 }
 
-                updateSelectedButton()
+                updateSelectionUI()
             }
 
             row.setOnClickListener {
 
-                if (!selectedIds.contains(song.id)) {
-                    selectedIds.add(song.id)
-                    checkBox.isChecked = true
+                if (selectionMode) {
+
+                    checkBox.isChecked =
+                        !checkBox.isChecked
+
                 } else {
+
                     playSingleSong(song)
                 }
             }
@@ -407,7 +524,7 @@ class LibraryActivity : AppCompatActivity() {
             songsContainer.addView(row)
         }
 
-        updateSelectedButton()
+        updateSelectionUI()
     }
 
     private fun loadAlbumThumbnail(
@@ -419,15 +536,20 @@ class LibraryActivity : AppCompatActivity() {
             R.drawable.makyama_logo
         )
 
-        if (albumId <= 0) return
+        if (albumId <= 0) {
+            return
+        }
 
         try {
 
-            val albumArtUri = Uri.parse(
-                "content://media/external/audio/albumart/$albumId"
-            )
+            val albumArtUri =
+                Uri.parse(
+                    "content://media/external/audio/albumart/$albumId"
+                )
 
-            imageView.setImageURI(albumArtUri)
+            imageView.setImageURI(
+                albumArtUri
+            )
 
         } catch (_: Exception) {
 
@@ -437,28 +559,176 @@ class LibraryActivity : AppCompatActivity() {
         }
     }
 
-    private fun updateSelectedButton() {
+    private fun updateSelectionUI() {
 
-        val count = selectedIds.size
+        if (!selectionMode) {
 
-        playSelectedButton.text =
-            if (count == 0) {
-                "PLAY SELECTED"
+            selectedActionBar.visibility =
+                View.GONE
+
+            return
+        }
+
+        selectedActionBar.visibility =
+            View.VISIBLE
+
+        selectedCountText.text =
+            if (selectedIds.size == 1) {
+                "1 selected"
             } else {
-                "PLAY SELECTED ($count)"
+                "${selectedIds.size} selected"
             }
     }
 
-    private fun playSingleSong(song: AudioItem) {
+    private fun showLibraryMenu() {
 
-        val controller = mediaController
+        val popup =
+            PopupMenu(
+                this,
+                menuButton
+            )
+
+        popup.menu.add(
+            "Sort by Title"
+        )
+
+        popup.menu.add(
+            "Sort by Artist"
+        )
+
+        popup.menu.add(
+            "Sort by Album"
+        )
+
+        popup.menu.add(
+            "Sort by Date added"
+        )
+
+        popup.menu.add(
+            "Select songs"
+        )
+
+        popup.menu.add(
+            "Select all"
+        )
+
+        popup.menu.add(
+            "Clear selection"
+        )
+
+        popup.menu.add(
+            "Play selected"
+        )
+
+        popup.setOnMenuItemClickListener {
+
+            when (it.title.toString()) {
+
+                "Sort by Title" -> {
+                    sortType =
+                        SortType.TITLE
+
+                    sortAudioList()
+                }
+
+                "Sort by Artist" -> {
+                    sortType =
+                        SortType.ARTIST
+
+                    sortAudioList()
+                }
+
+                "Sort by Album" -> {
+                    sortType =
+                        SortType.ALBUM
+
+                    sortAudioList()
+                }
+
+                "Sort by Date added" -> {
+                    sortType =
+                        SortType.DATE_ADDED
+
+                    sortAudioList()
+                }
+
+                "Select songs" -> {
+                    enterSelectionMode()
+                }
+
+                "Select all" -> {
+                    selectAllSongs()
+                }
+
+                "Clear selection" -> {
+                    clearSelection()
+                }
+
+                "Play selected" -> {
+                    playSelectedSongs()
+                }
+            }
+
+            true
+        }
+
+        popup.show()
+    }
+
+    private fun enterSelectionMode() {
+
+        selectionMode = true
+
+        showSongs()
+
+        Toast.makeText(
+            this,
+            "Select the songs you want to play.",
+            Toast.LENGTH_SHORT
+        ).show()
+    }
+
+    private fun selectAllSongs() {
+
+        if (audioList.isEmpty()) {
+            return
+        }
+
+        selectionMode = true
+
+        selectedIds.clear()
+
+        audioList.forEach {
+            selectedIds.add(it.id)
+        }
+
+        showSongs()
+    }
+
+    private fun clearSelection() {
+
+        selectedIds.clear()
+
+        selectionMode = false
+
+        showSongs()
+    }
+
+    private fun playSingleSong(
+        song: AudioItem
+    ) {
+
+        val controller =
+            mediaController
 
         if (controller == null) {
+
             Toast.makeText(
                 this,
                 "Player is still starting...",
                 Toast.LENGTH_SHORT
             ).show()
+
             return
         }
 
@@ -475,7 +745,7 @@ class LibraryActivity : AppCompatActivity() {
         controller.play()
 
         startActivity(
-            android.content.Intent(
+            Intent(
                 this,
                 PlayerActivity::class.java
             )
@@ -484,28 +754,35 @@ class LibraryActivity : AppCompatActivity() {
 
     private fun playSelectedSongs() {
 
-        val controller = mediaController
+        val controller =
+            mediaController
 
         if (controller == null) {
+
             Toast.makeText(
                 this,
                 "Player is still starting...",
                 Toast.LENGTH_SHORT
             ).show()
+
             return
         }
 
         val selectedSongs =
             audioList.filter {
-                selectedIds.contains(it.id)
+                selectedIds.contains(
+                    it.id
+                )
             }
 
         if (selectedSongs.isEmpty()) {
+
             Toast.makeText(
                 this,
                 "Select at least one song.",
                 Toast.LENGTH_SHORT
             ).show()
+
             return
         }
 
@@ -524,7 +801,7 @@ class LibraryActivity : AppCompatActivity() {
         controller.play()
 
         startActivity(
-            android.content.Intent(
+            Intent(
                 this,
                 PlayerActivity::class.java
             )
@@ -543,8 +820,12 @@ class LibraryActivity : AppCompatActivity() {
                 .build()
 
         return MediaItem.Builder()
-            .setUri(Uri.parse(song.uri))
-            .setMediaMetadata(metadata)
+            .setUri(
+                Uri.parse(song.uri)
+            )
+            .setMediaMetadata(
+                metadata
+            )
             .build()
     }
 }
